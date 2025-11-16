@@ -100,7 +100,9 @@ if [ "$ENV" == "dev" ]; then
     echo ""
 
     # Start with uvicorn
-    python -m uvicorn src.main:app --reload --host ${APP_HOST:-0.0.0.0} --port ${APP_PORT:-8000} --log-level ${LOG_LEVEL,,}
+    # Convert LOG_LEVEL to lowercase (compatible with bash 3.2+)
+    LOG_LEVEL_LOWER=$(echo "${LOG_LEVEL:-info}" | tr '[:upper:]' '[:lower:]')
+    python -m uvicorn src.main:app --reload --host ${APP_HOST:-0.0.0.0} --port ${APP_PORT:-8000} --log-level $LOG_LEVEL_LOWER
 else
     echo -e "${YELLOW}🚀 Starting TESS in $ENV mode with PM2...${NC}"
 

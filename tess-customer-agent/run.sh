@@ -76,7 +76,9 @@ if [ "$ENV" == "dev" ]; then
     echo -e "${GREEN}Access the API at: http://$APP_HOST:$APP_PORT${NC}"
     echo -e "${GREEN}API documentation: http://$APP_HOST:$APP_PORT/docs${NC}"
     echo ""
-    python -m uvicorn src.main:app --reload --host $APP_HOST --port $APP_PORT --log-level ${LOG_LEVEL,,}
+    # Convert LOG_LEVEL to lowercase (compatible with bash 3.2+)
+    LOG_LEVEL_LOWER=$(echo "$LOG_LEVEL" | tr '[:upper:]' '[:lower:]')
+    python -m uvicorn src.main:app --reload --host $APP_HOST --port $APP_PORT --log-level $LOG_LEVEL_LOWER
 else
     echo -e "${YELLOW}🚀 Starting TESS in $ENV mode with PM2...${NC}"
 
