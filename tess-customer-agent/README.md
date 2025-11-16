@@ -40,23 +40,45 @@ PostgreSQL Memory
 - Frappe MCP Server running (http://localhost:3000/sse)
 - OpenAI API key
 
-### 1. Clone and Setup
+### Option A: One-Command Start (Recommended)
 
 ```bash
 # Navigate to project directory
 cd tess-customer-agent
 
-# Run setup script
-./setup.sh dev
+# Edit .env.dev with your credentials first
+nano .env.dev
 
-# This will:
-# - Create virtual environment
-# - Install dependencies
-# - Create data directories
-# - Generate .env.dev from template
+# Run everything in one command
+./start.sh dev
 ```
 
-### 2. Configure Environment
+This single command will:
+- Setup virtual environment (if needed)
+- Install dependencies
+- Activate venv
+- Load environment variables
+- Validate configuration
+- Start TESS in development mode
+
+### Option B: Step-by-Step Setup
+
+If you prefer manual control:
+
+#### 1. Setup
+
+```bash
+cd tess-customer-agent
+./setup.sh dev
+```
+
+This will:
+- Create virtual environment
+- Install dependencies
+- Create data directories
+- Generate .env.dev from template
+
+#### 2. Configure Environment
 
 Edit `.env.dev` with your credentials:
 
@@ -72,14 +94,14 @@ FRAPPE_API_KEY=your-api-key
 FRAPPE_API_SECRET=your-api-secret
 ```
 
-### 3. Run Database Migrations
+#### 3. Run Database Migrations
 
 ```bash
 source venv/bin/activate
 python -m src.utils.migrate
 ```
 
-### 4. Start the Application
+#### 4. Start the Application
 
 ```bash
 # Development mode (auto-reload)

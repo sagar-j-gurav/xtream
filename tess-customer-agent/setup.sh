@@ -70,7 +70,10 @@ echo -e "${GREEN}✓ Environment configuration checked${NC}"
 
 # Check for PostgreSQL connection
 echo -e "${YELLOW}Checking PostgreSQL configuration...${NC}"
-export $(cat .env.$ENV | grep -v '^#' | xargs)
+# Load environment variables (properly handle comments and empty lines)
+set -a
+source .env.$ENV 2>/dev/null || true
+set +a
 
 if [ -z "$POSTGRES_PASSWORD" ]; then
     echo -e "${YELLOW}Warning: PostgreSQL credentials not configured in .env.$ENV${NC}"
