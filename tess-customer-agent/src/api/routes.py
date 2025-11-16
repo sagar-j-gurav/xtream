@@ -2,7 +2,7 @@
 API Routes for TESS
 FastAPI route handlers
 """
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
