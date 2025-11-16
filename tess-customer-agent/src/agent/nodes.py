@@ -63,11 +63,16 @@ async def call_model(state: AgentState) -> AgentState:
     # Get tools from state metadata if available
     tools = state.get("metadata", {}).get("tools", [])
 
+    logger.info(f"Tools available for binding: {len(tools)}")
+    if tools:
+        logger.info(f"Tool names: {[t.name for t in tools]}")
+
     # Bind tools to LLM if available
     if tools:
         llm_with_tools = llm.bind_tools(tools)
         response = await llm_with_tools.ainvoke(filtered_messages)
     else:
+        logger.warning("No tools available - agent will respond without tools")
         response = await llm.ainvoke(filtered_messages)
 
     # Update state
