@@ -3,7 +3,7 @@ LangGraph Agent Nodes
 Core agent logic and node functions
 """
 from typing import List
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolNode
 
@@ -46,9 +46,16 @@ async def call_model(state: AgentState) -> AgentState:
     # Get messages from state
     messages = state["messages"]
 
+    # Filter out ToolMessage instances (they cause OpenAI API errors)
+    # Only keep HumanMessage, AIMessage, and SystemMessage
+    filtered_messages = [
+        msg for msg in messages
+        if not isinstance(msg, ToolMessage)
+    ]
+
     # Ensure system message is first
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+    if not filtered_messages or not isinstance(filtered_messages[0], SystemMessage):
+        filtered_messages = [SystemMessage(content=SYSTEM_PROMPT)] + filtered_messages
 
     # Create LLM
     llm = create_llm()
@@ -59,9 +66,9 @@ async def call_model(state: AgentState) -> AgentState:
     # Bind tools to LLM if available
     if tools:
         llm_with_tools = llm.bind_tools(tools)
-        response = await llm_with_tools.ainvoke(messages)
+        response = await llm_with_tools.ainvoke(filtered_messages)
     else:
-        response = await llm.ainvoke(messages)
+        response = await llm.ainvoke(filtered_messages)
 
     # Update state
     state["messages"] = messages + [response]
