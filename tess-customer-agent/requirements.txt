@@ -1,0 +1,45 @@
+# TESS Customer Agent Dependencies
+
+# Core Framework
+langgraph>=0.2.50
+langchain>=0.3.12
+langchain-openai>=0.2.11
+langchain-mcp-adapters>=0.7.0
+langchain-community>=0.3.12
+
+# Vector Store
+chromadb>=0.5.18
+sentence-transformers>=3.3.1
+
+# Database
+psycopg2-binary>=2.9.10
+asyncpg>=0.30.0
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+
+# API
+fastapi>=0.115.6
+uvicorn[standard]>=0.32.1
+pydantic>=2.10.4
+pydantic-settings>=2.7.0
+
+# Utilities
+python-dotenv>=1.0.1
+tenacity>=9.0.0
+httpx>=0.28.1
+python-multipart>=0.0.20
+aiofiles>=24.1.0
+email-validator>=2.2.0
+
+# Logging & Monitoring
+structlog>=24.4.0
+python-json-logger>=3.2.1
+
+# Testing
+pytest>=8.3.4
+pytest-asyncio>=0.24.0
+pytest-cov>=6.0.0
+
+# Type Checking
+mypy>=1.13.0
+types-requests>=2.32.0
