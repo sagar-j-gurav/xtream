@@ -82,6 +82,9 @@ class ChromaDBClient:
             documents: List of document texts
             metadatas: List of metadata dictionaries
             ids: List of document IDs (auto-generated if not provided)
+
+        Raises:
+            ValueError: If OpenAI quota exceeded or other embedding errors
         """
         if not self.collection:
             self.initialize()
@@ -91,14 +94,36 @@ class ChromaDBClient:
             import uuid
             ids = [str(uuid.uuid4()) for _ in documents]
 
-        # Add documents
-        self.collection.add(
-            documents=documents,
-            metadatas=metadatas,
-            ids=ids
-        )
+        # Add documents with proper error handling
+        try:
+            self.collection.add(
+                documents=documents,
+                metadatas=metadatas,
+                ids=ids
+            )
+            logger.info(f"Added {len(documents)} documents to collection")
+        except Exception as e:
+            error_msg = str(e)
 
-        logger.info(f"Added {len(documents)} documents to collection")
+            # Handle OpenAI quota/rate limit errors
+            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+                logger.error(f"OpenAI quota exceeded during embedding generation")
+                raise ValueError(
+                    "OpenAI API quota exceeded. Please add credits to your OpenAI account at "
+                    "https://platform.openai.com/account/billing and try again."
+                ) from e
+
+            # Handle other OpenAI errors
+            if "openai" in error_msg.lower() or "embedding" in error_msg.lower():
+                logger.error(f"OpenAI embedding error: {error_msg}")
+                raise ValueError(
+                    f"OpenAI embedding error: {error_msg}. "
+                    "Please check your OpenAI API key and billing status."
+                ) from e
+
+            # Re-raise other errors
+            logger.error(f"Failed to add documents to ChromaDB: {error_msg}")
+            raise ValueError(f"Failed to add documents to ChromaDB: {error_msg}") from e
 
     def search(
         self,
