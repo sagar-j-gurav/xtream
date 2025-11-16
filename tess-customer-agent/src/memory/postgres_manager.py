@@ -370,6 +370,175 @@ class PostgresMemoryManager:
             logger.info(f"Archived {result} old conversations")
             return result
 
+    async def get_conversations_by_user(
+        self,
+        user_identifier: str,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all conversations for a user
+
+        Args:
+            user_identifier: User email, phone, or ID
+            limit: Maximum number of conversations
+            offset: Number of conversations to skip
+
+        Returns:
+            List[Dict[str, Any]]: List of conversations
+        """
+        if not self.pool:
+            await self.initialize()
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    c.id,
+                    c.session_id,
+                    c.user_identifier,
+                    c.created_at,
+                    c.updated_at,
+                    c.metadata,
+                    COUNT(m.id) as message_count,
+                    MAX(m.timestamp) as last_message_at
+                FROM conversations c
+                LEFT JOIN messages m ON c.id = m.conversation_id
+                WHERE c.user_identifier = $1
+                GROUP BY c.id, c.session_id, c.user_identifier, c.created_at, c.updated_at, c.metadata
+                ORDER BY c.updated_at DESC
+                LIMIT $2 OFFSET $3
+                """,
+                user_identifier,
+                limit,
+                offset
+            )
+
+            conversations = [
+                {
+                    'conversation_id': str(row['id']),
+                    'session_id': row['session_id'],
+                    'user_identifier': row['user_identifier'],
+                    'created_at': row['created_at'].isoformat(),
+                    'updated_at': row['updated_at'].isoformat(),
+                    'metadata': json.loads(row['metadata']) if row['metadata'] else {},
+                    'message_count': row['message_count'],
+                    'last_message_at': row['last_message_at'].isoformat() if row['last_message_at'] else None
+                }
+                for row in rows
+            ]
+
+            return conversations
+
+    async def get_all_messages_by_user(
+        self,
+        user_identifier: str,
+        limit: int = 1000,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all messages across all conversations for a user
+
+        Args:
+            user_identifier: User email, phone, or ID
+            limit: Maximum number of messages
+            offset: Number of messages to skip
+
+        Returns:
+            List[Dict[str, Any]]: List of messages with conversation context
+        """
+        if not self.pool:
+            await self.initialize()
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    m.id,
+                    m.conversation_id,
+                    c.session_id,
+                    m.role,
+                    m.content,
+                    m.tool_calls,
+                    m.timestamp,
+                    m.tokens_used
+                FROM messages m
+                JOIN conversations c ON m.conversation_id = c.id
+                WHERE c.user_identifier = $1
+                ORDER BY m.timestamp DESC
+                LIMIT $2 OFFSET $3
+                """,
+                user_identifier,
+                limit,
+                offset
+            )
+
+            messages = [
+                {
+                    'message_id': str(row['id']),
+                    'conversation_id': str(row['conversation_id']),
+                    'session_id': row['session_id'],
+                    'role': row['role'],
+                    'content': row['content'],
+                    'tool_calls': json.loads(row['tool_calls']) if row['tool_calls'] else None,
+                    'timestamp': row['timestamp'].isoformat(),
+                    'tokens_used': row['tokens_used']
+                }
+                for row in rows
+            ]
+
+            return messages
+
+    async def get_user_query_history(
+        self,
+        user_identifier: str,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Get only user queries (not assistant responses) for analysis
+
+        Args:
+            user_identifier: User email, phone, or ID
+            limit: Maximum number of queries
+
+        Returns:
+            List[Dict[str, Any]]: List of user queries
+        """
+        if not self.pool:
+            await self.initialize()
+
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    m.id,
+                    m.conversation_id,
+                    c.session_id,
+                    m.content,
+                    m.timestamp
+                FROM messages m
+                JOIN conversations c ON m.conversation_id = c.id
+                WHERE c.user_identifier = $1 AND m.role = 'user'
+                ORDER BY m.timestamp DESC
+                LIMIT $2
+                """,
+                user_identifier,
+                limit
+            )
+
+            queries = [
+                {
+                    'message_id': str(row['id']),
+                    'conversation_id': str(row['conversation_id']),
+                    'session_id': row['session_id'],
+                    'query': row['content'],
+                    'timestamp': row['timestamp'].isoformat()
+                }
+                for row in rows
+            ]
+
+            return queries
+
 
 # Singleton instance
 _memory_manager: Optional[PostgresMemoryManager] = None

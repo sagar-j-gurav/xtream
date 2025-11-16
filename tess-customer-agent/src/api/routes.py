@@ -231,6 +231,229 @@ async def index_knowledge(request: IndexDocumentRequest) -> IndexDocumentRespons
         )
 
 
+@router.get("/users/{user_id}/conversations")
+async def get_user_conversations(
+    user_id: str,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    Get all conversations for a user
+
+    Args:
+        user_id: User identifier (email, phone, or ID)
+        limit: Maximum number of conversations
+        offset: Pagination offset
+
+    Returns:
+        List of conversations with metadata
+    """
+    try:
+        logger.info(f"Fetching conversations for user: {user_id}")
+
+        memory_manager = get_memory_manager()
+        await memory_manager.initialize()
+
+        conversations = await memory_manager.get_conversations_by_user(
+            user_identifier=user_id,
+            limit=limit,
+            offset=offset
+        )
+
+        return {
+            "user_id": user_id,
+            "conversations": conversations,
+            "count": len(conversations),
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch user conversations", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user conversations"
+        )
+
+
+@router.get("/users/{user_id}/messages")
+async def get_user_messages(
+    user_id: str,
+    limit: int = 1000,
+    offset: int = 0
+):
+    """
+    Get all messages across all conversations for a user
+
+    Args:
+        user_id: User identifier (email, phone, or ID)
+        limit: Maximum number of messages
+        offset: Pagination offset
+
+    Returns:
+        List of messages with conversation context
+    """
+    try:
+        logger.info(f"Fetching messages for user: {user_id}")
+
+        memory_manager = get_memory_manager()
+        await memory_manager.initialize()
+
+        messages = await memory_manager.get_all_messages_by_user(
+            user_identifier=user_id,
+            limit=limit,
+            offset=offset
+        )
+
+        return {
+            "user_id": user_id,
+            "messages": messages,
+            "count": len(messages),
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch user messages", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user messages"
+        )
+
+
+@router.get("/users/{user_id}/queries")
+async def get_user_queries(
+    user_id: str,
+    limit: int = 100
+):
+    """
+    Get user's query history (only user messages, not assistant responses)
+
+    Args:
+        user_id: User identifier (email, phone, or ID)
+        limit: Maximum number of queries
+
+    Returns:
+        List of user queries
+    """
+    try:
+        logger.info(f"Fetching query history for user: {user_id}")
+
+        memory_manager = get_memory_manager()
+        await memory_manager.initialize()
+
+        queries = await memory_manager.get_user_query_history(
+            user_identifier=user_id,
+            limit=limit
+        )
+
+        return {
+            "user_id": user_id,
+            "queries": queries,
+            "count": len(queries),
+            "limit": limit
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch user queries", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user queries"
+        )
+
+
+@router.post("/knowledge/upload-faqs")
+async def upload_faqs(faqs: List[Dict[str, str]], source: str = "api_upload"):
+    """
+    Upload FAQ data to knowledge base
+
+    Request body:
+    [
+        {
+            "question": "What is your refund policy?",
+            "answer": "We offer 30-day refunds...",
+            "category": "policies"  # optional
+        },
+        ...
+    ]
+
+    Args:
+        faqs: List of FAQ dictionaries
+        source: Source identifier
+
+    Returns:
+        Number of FAQs indexed
+    """
+    try:
+        logger.info(f"Uploading {len(faqs)} FAQs")
+
+        from src.vectorstore.chunking import index_faqs
+
+        indexed_count = await index_faqs(faqs=faqs, source=source)
+
+        return {
+            "indexed": indexed_count,
+            "source": source,
+            "type": "faq"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to upload FAQs", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload FAQs"
+        )
+
+
+@router.post("/knowledge/upload-content")
+async def upload_website_content(
+    content: str,
+    url: str,
+    page_title: str = None,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200
+):
+    """
+    Upload website content to knowledge base
+
+    Args:
+        content: Website content (HTML stripped)
+        url: Source URL
+        page_title: Optional page title
+        chunk_size: Chunk size in characters
+        chunk_overlap: Overlap between chunks
+
+    Returns:
+        Number of chunks indexed
+    """
+    try:
+        logger.info(f"Uploading website content from {url}")
+
+        from src.vectorstore.chunking import index_website_content
+
+        indexed_count = await index_website_content(
+            content=content,
+            url=url,
+            page_title=page_title,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap
+        )
+
+        return {
+            "indexed": indexed_count,
+            "source": url,
+            "type": "website_content",
+            "chunk_size": chunk_size
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to upload website content", error=str(e), exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload website content"
+        )
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """

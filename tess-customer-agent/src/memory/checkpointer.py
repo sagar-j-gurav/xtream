@@ -84,10 +84,11 @@ async def load_conversation_history(
         limit=max_messages
     )
 
-    # Convert to LangChain messages
+    # Convert to LangChain messages (skip tool messages to avoid OpenAI API errors)
     messages = [
         role_to_message(msg['role'], msg['content'])
         for msg in messages_data
+        if msg['role'] in [ROLE_USER, ROLE_ASSISTANT, ROLE_SYSTEM]
     ]
 
     logger.info(
