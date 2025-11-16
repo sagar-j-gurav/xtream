@@ -59,6 +59,23 @@ class Settings(BaseSettings):
         description="Minimum similarity threshold"
     )
 
+    # Chunking Configuration
+    # FAQ chunking (each Q&A pair is one chunk - no splitting)
+    faq_chunk_size: int = Field(
+        default=2000,
+        description="Max size for FAQ chunks (one Q&A pair per chunk)"
+    )
+
+    # Website content chunking (semantic splitting with overlap)
+    website_chunk_size: int = Field(
+        default=1000,
+        description="Chunk size for website content in characters"
+    )
+    website_chunk_overlap: int = Field(
+        default=200,
+        description="Overlap between website content chunks"
+    )
+
     # Agent Configuration
     max_conversation_history: int = Field(
         default=10,

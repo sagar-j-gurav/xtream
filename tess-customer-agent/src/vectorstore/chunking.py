@@ -33,6 +33,7 @@ def chunk_faq_data(
         question = faq.get('question', '').strip()
         answer = faq.get('answer', '').strip()
         category = faq.get('category', 'general')
+        document_linkage = faq.get('document_linkage', '')
 
         if not question or not answer:
             logger.warning(f"Skipping FAQ {idx}: missing question or answer")
@@ -50,6 +51,10 @@ def chunk_faq_data(
             'question': question,
             'chunk_index': idx
         }
+
+        # Add document linkage if present
+        if document_linkage and document_linkage.strip():
+            metadata['document_linkage'] = document_linkage.strip()
 
         documents.append(document)
         metadatas.append(metadata)

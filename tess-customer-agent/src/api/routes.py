@@ -3,8 +3,10 @@ API Routes for TESS
 FastAPI route handlers
 """
 from typing import List, Dict, Any
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, File, UploadFile, Form
 from fastapi.responses import JSONResponse
+import pandas as pd
+import io
 
 from src.api.models import (
     ChatRequest,
@@ -363,94 +365,190 @@ async def get_user_queries(
 
 
 @router.post("/knowledge/upload-faqs")
-async def upload_faqs(faqs: List[Dict[str, str]], source: str = "api_upload"):
+async def upload_faqs(
+    file: UploadFile = File(..., description="Excel or CSV file with FAQs"),
+    source: str = Form(default="api_upload")
+):
     """
-    Upload FAQ data to knowledge base
+    Upload FAQ data from Excel/CSV file to knowledge base
 
-    Request body:
-    [
-        {
-            "question": "What is your refund policy?",
-            "answer": "We offer 30-day refunds...",
-            "category": "policies"  # optional
-        },
-        ...
-    ]
+    Expected columns in the file:
+    - QUESTION (required)
+    - ANSWER (required)
+    - SL.NO (optional - serial number)
+    - Document Linkage (optional)
 
     Args:
-        faqs: List of FAQ dictionaries
+        file: Excel (.xlsx, .xls) or CSV (.csv) file
         source: Source identifier
 
     Returns:
         Number of FAQs indexed
     """
     try:
-        logger.info(f"Uploading {len(faqs)} FAQs")
+        # Validate file extension
+        filename = file.filename.lower()
+        if not (filename.endswith('.xlsx') or filename.endswith('.xls') or filename.endswith('.csv')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be Excel (.xlsx, .xls) or CSV (.csv)"
+            )
+
+        # Read file content
+        content = await file.read()
+
+        # Parse based on file type
+        if filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(content))
+        else:
+            df = pd.read_excel(io.BytesIO(content))
+
+        logger.info(f"Parsed file with {len(df)} rows and columns: {df.columns.tolist()}")
+
+        # Validate required columns (case-insensitive)
+        df.columns = df.columns.str.strip()  # Remove whitespace
+        column_map = {col.upper(): col for col in df.columns}
+
+        if 'QUESTION' not in column_map or 'ANSWER' not in column_map:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File must have 'QUESTION' and 'ANSWER' columns. Found: {df.columns.tolist()}"
+            )
+
+        # Map to standard format
+        faqs = []
+        for _, row in df.iterrows():
+            question = str(row[column_map['QUESTION']]).strip()
+            answer = str(row[column_map['ANSWER']]).strip()
+
+            # Skip empty rows
+            if pd.isna(row[column_map['QUESTION']]) or pd.isna(row[column_map['ANSWER']]):
+                continue
+            if not question or not answer or question == 'nan' or answer == 'nan':
+                continue
+
+            faq = {
+                "question": question,
+                "answer": answer
+            }
+
+            # Add optional document linkage if present
+            if 'DOCUMENT LINKAGE' in column_map:
+                doc_link = row[column_map['DOCUMENT LINKAGE']]
+                if not pd.isna(doc_link):
+                    faq["document_linkage"] = str(doc_link).strip()
+
+            faqs.append(faq)
+
+        if not faqs:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No valid FAQs found in file"
+            )
+
+        logger.info(f"Uploading {len(faqs)} FAQs from {file.filename}")
 
         from src.vectorstore.chunking import index_faqs
 
-        indexed_count = await index_faqs(faqs=faqs, source=source)
+        indexed_count = await index_faqs(faqs=faqs, source=f"{source}_{file.filename}")
 
         return {
             "indexed": indexed_count,
-            "source": source,
-            "type": "faq"
+            "source": f"{source}_{file.filename}",
+            "type": "faq",
+            "filename": file.filename
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to upload FAQs", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload FAQs"
+            detail=f"Failed to upload FAQs: {str(e)}"
         )
 
 
 @router.post("/knowledge/upload-content")
 async def upload_website_content(
-    content: str,
-    url: str,
-    page_title: str = None,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200
+    file: UploadFile = File(..., description="Text file with content"),
+    url: str = Form(default="manual_upload"),
+    page_title: str = Form(default=None)
 ):
     """
-    Upload website content to knowledge base
+    Upload website/documentation content from text file to knowledge base
 
     Args:
-        content: Website content (HTML stripped)
-        url: Source URL
+        file: Text file (.txt) with content
+        url: Source URL identifier
         page_title: Optional page title
-        chunk_size: Chunk size in characters
-        chunk_overlap: Overlap between chunks
 
     Returns:
         Number of chunks indexed
     """
     try:
-        logger.info(f"Uploading website content from {url}")
+        # Validate file extension
+        filename = file.filename.lower()
+        if not filename.endswith('.txt'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File must be a text file (.txt)"
+            )
+
+        # Read file content
+        content_bytes = await file.read()
+        try:
+            content = content_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            # Try with other encodings
+            try:
+                content = content_bytes.decode('latin-1')
+            except:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Unable to decode file. Please ensure it's a valid text file."
+                )
+
+        if not content.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File is empty"
+            )
+
+        # Use page_title from filename if not provided
+        if not page_title:
+            page_title = file.filename.replace('.txt', '').replace('_', ' ').title()
+
+        # Get chunk settings from config
+        settings = get_settings()
+
+        logger.info(f"Uploading website content from {file.filename} ({len(content)} chars)")
 
         from src.vectorstore.chunking import index_website_content
 
         indexed_count = await index_website_content(
             content=content,
-            url=url,
+            url=f"{url}_{file.filename}",
             page_title=page_title,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap
+            chunk_size=settings.website_chunk_size,
+            chunk_overlap=settings.website_chunk_overlap
         )
 
         return {
             "indexed": indexed_count,
-            "source": url,
+            "source": f"{url}_{file.filename}",
             "type": "website_content",
-            "chunk_size": chunk_size
+            "chunk_size": settings.website_chunk_size,
+            "filename": file.filename
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to upload website content", error=str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to upload website content"
+            detail=f"Failed to upload website content: {str(e)}"
         )
 
 

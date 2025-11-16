@@ -1,52 +1,93 @@
 # TESS Knowledge Base Upload Guide
 
-This guide explains how to upload FAQs and content to the TESS knowledge base.
+This guide explains how to upload FAQs and content to the TESS knowledge base using **form-data** (file uploads).
 
 ## Prerequisites
 
-1. TESS server must be running:
+1. **TESS server must be running:**
    ```bash
    ./start.sh dev
    ```
 
-2. For Python scripts, install pandas and openpyxl:
+2. **For Python scripts** (optional - CURL also works):
    ```bash
-   pip install pandas openpyxl requests
+   pip install requests
    ```
 
-## Method 1: Using Python Helper Scripts (Recommended)
+## Quick Start
 
-### Upload FAQs from Excel
+### Upload FAQ File (Excel/CSV)
 
-Your Excel file should have these columns:
-- `question` (required)
-- `answer` (required)
-- `category` (optional)
+**Expected columns in your Excel/CSV file:**
+- `QUESTION` (required)
+- `ANSWER` (required)
+- `SL.NO` (optional - serial number)
+- `Document Linkage` (optional - reference links)
 
-**Command:**
+**Using Python script:**
 ```bash
 python upload_faqs_from_excel.py your_faqs.xlsx
 ```
 
-**With custom API URL:**
+**Using CURL:**
 ```bash
-python upload_faqs_from_excel.py your_faqs.xlsx http://localhost:8000
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
+  -F "file=@your_faqs.xlsx" \
+  -F "source=my_faqs"
 ```
 
-**Example Excel format:**
+### Upload Content File (Text)
 
-| question | answer | category |
-|----------|--------|----------|
-| What is your refund policy? | We offer 30-day refunds... | policies |
-| How long does shipping take? | Standard shipping takes 3-5 days | shipping |
+**Using Python script:**
+```bash
+python upload_content_from_txt.py your_content.txt
+```
 
-You can also use CSV and save as .xlsx in Excel.
+**Using CURL:**
+```bash
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-content \
+  -F "file=@your_content.txt" \
+  -F "url=https://example.com/docs" \
+  -F "page_title=Product Documentation"
+```
+
+---
+
+## Method 1: Using Python Helper Scripts (Recommended)
+
+### Upload FAQs from Excel/CSV
+
+**Command:**
+```bash
+python upload_faqs_from_excel.py faqs.xlsx
+```
+
+**With custom API URL:**
+```bash
+python upload_faqs_from_excel.py faqs.xlsx http://localhost:8000
+```
+
+**With custom source identifier:**
+```bash
+python upload_faqs_from_excel.py faqs.xlsx http://localhost:8000 my_source
+```
+
+**Expected file format:**
+
+| SL.NO | QUESTION | ANSWER | Document Linkage |
+|-------|----------|--------|------------------|
+| 1 | What is your refund policy? | We offer 30-day refunds... | https://docs.example.com/refund |
+| 2 | How long does shipping take? | Standard shipping takes 3-5 days | https://docs.example.com/shipping |
+
+✅ **Supports:** `.xlsx`, `.xls`, `.csv`
+✅ **Case-insensitive** column names
+✅ **Automatically skips** empty rows
 
 ### Upload Content from Text File
 
 **Command:**
 ```bash
-python upload_content_from_txt.py your_content.txt
+python upload_content_from_txt.py docs.txt
 ```
 
 **With custom URL and title:**
@@ -54,108 +95,138 @@ python upload_content_from_txt.py your_content.txt
 python upload_content_from_txt.py docs.txt "https://example.com/docs" "Product Documentation"
 ```
 
+**Auto-generates title** from filename if not provided.
+
+---
+
 ## Method 2: Using CURL Commands
 
-### Upload FAQs (JSON format)
+### Upload FAQs (Excel/CSV File)
 
-**Step 1:** Create a JSON file `faqs.json`:
+**Basic upload:**
+```bash
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
+  -F "file=@faqs.xlsx"
+```
+
+**With source identifier:**
+```bash
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
+  -F "file=@faqs.xlsx" \
+  -F "source=customer_support_faqs"
+```
+
+**Upload CSV instead:**
+```bash
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
+  -F "file=@faqs.csv" \
+  -F "source=csv_import"
+```
+
+**Expected response:**
 ```json
 {
-  "faqs": [
-    {
-      "question": "What is your refund policy?",
-      "answer": "We offer a 30-day money-back guarantee on all products.",
-      "category": "policies"
-    },
-    {
-      "question": "How long does shipping take?",
-      "answer": "Standard shipping takes 3-5 business days.",
-      "category": "shipping"
-    }
-  ],
-  "source": "excel_import"
+  "indexed": 10,
+  "source": "customer_support_faqs_faqs.xlsx",
+  "type": "faq",
+  "filename": "faqs.xlsx"
 }
 ```
 
-**Step 2:** Upload with CURL:
-```bash
-curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
-  -H "Content-Type: application/json" \
-  -d @faqs.json
-```
+### Upload Content (Text File)
 
-**Or inline:**
-```bash
-curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "faqs": [
-      {
-        "question": "What is your refund policy?",
-        "answer": "We offer 30-day money-back guarantee.",
-        "category": "policies"
-      }
-    ],
-    "source": "manual_upload"
-  }'
-```
-
-### Upload Content from Text File
-
-**Direct from file:**
+**Basic upload:**
 ```bash
 curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-content \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"content\": \"$(cat your_content.txt | sed 's/\"/\\\"/g' | sed 's/$/\\n/' | tr -d '\n')\",
-    \"url\": \"manual_upload\",
-    \"page_title\": \"Documentation\",
-    \"chunk_size\": 1000,
-    \"chunk_overlap\": 200
-  }"
+  -F "file=@documentation.txt"
 ```
 
-**With JSON file:**
+**With URL and title:**
 ```bash
-# Create content.json
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-content \
+  -F "file=@documentation.txt" \
+  -F "url=https://example.com/docs" \
+  -F "page_title=Product Documentation"
+```
+
+**Expected response:**
+```json
 {
-  "content": "Your content here...",
-  "url": "https://example.com/docs",
-  "page_title": "Product Documentation",
+  "indexed": 15,
+  "source": "https://example.com/docs_documentation.txt",
+  "type": "website_content",
   "chunk_size": 1000,
-  "chunk_overlap": 200
+  "filename": "documentation.txt"
 }
-
-# Upload
-curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-content \
-  -H "Content-Type: application/json" \
-  -d @content.json
 ```
 
-## Method 3: Converting CSV to Excel for FAQs
+---
 
-If you have a CSV file:
+## Configuration
 
-1. **Using Python:**
-   ```python
-   import pandas as pd
-   df = pd.read_csv('faqs.csv')
-   df.to_excel('faqs.xlsx', index=False)
-   ```
+### Chunking Settings
 
-2. **Using Excel:** Open CSV in Excel and Save As → Excel Workbook (.xlsx)
+Chunking is configured in `.env.dev` (or `.env.uat`, `.env.prod`):
 
-3. **Then upload:** `python upload_faqs_from_excel.py faqs.xlsx`
+```bash
+# FAQ chunking (each Q&A pair = 1 chunk, no splitting)
+FAQ_CHUNK_SIZE=2000
+
+# Website content chunking (semantic splitting)
+WEBSITE_CHUNK_SIZE=1000
+WEBSITE_CHUNK_OVERLAP=200
+```
+
+**Best practices:**
+- **FAQs**: Each question-answer pair stays together (no splitting)
+- **Website content**: 800-1200 chars with 150-200 overlap for semantic search
+
+---
+
+## Example Data Files
+
+This repository includes example files for testing:
+
+### 1. Example FAQ CSV (`example_faqs.csv`)
+
+```csv
+QUESTION,ANSWER,SL.NO,Document Linkage
+What is your refund policy?,We offer 30-day money-back guarantee...,1,
+How long does shipping take?,Standard shipping takes 3-5 business days.,2,
+```
+
+**Convert to Excel:**
+```bash
+# Using Python
+python -c "import pandas as pd; pd.read_csv('example_faqs.csv').to_excel('example_faqs.xlsx', index=False)"
+```
+
+**Upload:**
+```bash
+python upload_faqs_from_excel.py example_faqs.xlsx
+```
+
+### 2. Example Content (`example_content.txt`)
+
+Contains sample documentation text.
+
+**Upload:**
+```bash
+python upload_content_from_txt.py example_content.txt
+```
+
+---
 
 ## Testing Your Uploads
 
 ### Check Upload Success
 
-Both scripts will show success messages:
+Both scripts show success messages:
 ```
 ✅ SUCCESS! Indexed 10 FAQs
-Source: excel_import_your_faqs.xlsx
-Type: faq
+📁 Source: customer_support_faqs_faqs.xlsx
+📄 File: faqs.xlsx
+🏷️  Type: faq
 ```
 
 ### Query TESS to Verify
@@ -165,95 +236,160 @@ curl -X POST http://0.0.0.0:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "What is your refund policy?",
-    "session_id": "test-session",
+    "session_id": "test-123",
     "user_id": "test@example.com"
   }'
 ```
 
-TESS should now answer using the uploaded knowledge!
+**Expected:** TESS answers using the uploaded knowledge!
 
-## Examples Provided
+---
 
-This repository includes example files:
-- `example_faqs.csv` - Sample FAQ data
-- `example_content.txt` - Sample documentation content
+## Advanced Usage
 
-Try them:
-```bash
-# Convert CSV to Excel first (or open in Excel and save as .xlsx)
-python -c "import pandas as pd; pd.read_csv('example_faqs.csv').to_excel('example_faqs.xlsx', index=False)"
-
-# Upload
-python upload_faqs_from_excel.py example_faqs.xlsx
-python upload_content_from_txt.py example_content.txt
-```
-
-## API Response Format
-
-### Successful FAQ Upload
-```json
-{
-  "indexed": 10,
-  "source": "excel_import_faqs.xlsx",
-  "type": "faq"
-}
-```
-
-### Successful Content Upload
-```json
-{
-  "indexed": 15,
-  "source": "https://example.com/docs",
-  "type": "website_content",
-  "chunk_size": 1000
-}
-```
-
-### Error Response
-```json
-{
-  "detail": "Failed to upload FAQs"
-}
-```
-
-## Troubleshooting
-
-### Excel file error: "No module named 'openpyxl'"
-```bash
-pip install openpyxl
-```
-
-### CURL error: "Failed to connect"
-- Check TESS is running: `curl http://0.0.0.0:8000/api/v1/health`
-- Verify port in your .env.dev file
-
-### "Invalid parameter" errors
-- Ensure JSON is properly formatted (use a validator like jsonlint.com)
-- Check quotes are properly escaped in CURL commands
-
-### FAQs not being retrieved
-- Check ChromaDB is running: logs should show "chromadb: healthy"
-- Verify embeddings are created (check logs during upload)
-- Try increasing the search result limit in settings
-
-## Advanced: Bulk Operations
-
-For large datasets:
-
-1. **Split into batches** (recommended: 100 FAQs per file)
-2. **Upload sequentially** to avoid overwhelming the server
-3. **Monitor logs** for indexing progress
+### Bulk Upload Multiple Files
 
 ```bash
-for file in faqs_batch_*.xlsx; do
-    echo "Uploading $file..."
+# Upload all Excel files in a directory
+for file in faqs_*.xlsx; do
+    echo "📤 Uploading $file..."
     python upload_faqs_from_excel.py "$file"
-    sleep 2  # Brief pause between uploads
+    sleep 1  # Brief pause
 done
 ```
 
+### Upload with Custom Headers
+
+```bash
+curl -X POST http://0.0.0.0:8000/api/v1/knowledge/upload-faqs \
+  -H "X-Custom-Header: value" \
+  -F "file=@faqs.xlsx" \
+  -F "source=api_import"
+```
+
+### Check API Health
+
+```bash
+curl http://0.0.0.0:8000/api/v1/health
+```
+
+**Expected response:**
+```json
+{
+  "status": "healthy",
+  "services": {
+    "chromadb": "healthy",
+    "postgresql": "healthy",
+    "openai": "healthy"
+  }
+}
+```
+
+---
+
+## Troubleshooting
+
+### Error: "File must have 'QUESTION' and 'ANSWER' columns"
+
+**Cause:** Your Excel/CSV doesn't have the required columns.
+
+**Solution:** Ensure columns are named `QUESTION` and `ANSWER` (case-insensitive).
+
+**Check your columns:**
+```bash
+python -c "import pandas as pd; print(pd.read_excel('your_file.xlsx').columns.tolist())"
+```
+
+### Error: "File must be Excel (.xlsx, .xls) or CSV (.csv)"
+
+**Cause:** Wrong file type uploaded.
+
+**Solution:** Convert to supported format or use correct endpoint.
+
+### Error: "Unable to decode file"
+
+**Cause:** Text file has invalid encoding.
+
+**Solution:** Convert to UTF-8:
+```bash
+iconv -f ISO-8859-1 -t UTF-8 input.txt > output.txt
+```
+
+### Error: Connection refused
+
+**Cause:** TESS server not running.
+
+**Solution:**
+```bash
+./start.sh dev
+# Wait for "Application startup complete"
+```
+
+### FAQs not being retrieved by agent
+
+**Check ChromaDB:**
+```bash
+# View logs - should show "chromadb: healthy"
+tail -f logs/tess.log
+```
+
+**Verify indexing:**
+- Upload response should show `"indexed": N` where N > 0
+- Check logs for "Indexed N chunks"
+
+**Increase search results:**
+Update `.env.dev`:
+```bash
+CHROMA_TOP_K=10  # Default is 5
+```
+
+### Empty or "nan" values in FAQs
+
+**Cause:** Excel has empty cells or formulas evaluating to NaN.
+
+**Solution:**
+- Fill all required cells
+- Convert formulas to values
+- Remove empty rows
+
+---
+
+## API Documentation
+
+### View Interactive Docs
+
+**Swagger UI:**
+```
+http://0.0.0.0:8000/docs
+```
+
+**ReDoc:**
+```
+http://0.0.0.0:8000/redoc
+```
+
+### API Endpoints
+
+**Upload FAQs:**
+- **Endpoint:** `POST /api/v1/knowledge/upload-faqs`
+- **Content-Type:** `multipart/form-data`
+- **Parameters:**
+  - `file` (required): Excel/CSV file
+  - `source` (optional): Source identifier
+
+**Upload Content:**
+- **Endpoint:** `POST /api/v1/knowledge/upload-content`
+- **Content-Type:** `multipart/form-data`
+- **Parameters:**
+  - `file` (required): Text file
+  - `url` (optional): Source URL
+  - `page_title` (optional): Page title
+
+---
+
 ## Need Help?
 
-- Check API docs: http://0.0.0.0:8000/docs
-- View health status: http://0.0.0.0:8000/api/v1/health
-- Check logs in console where TESS is running
+- **Health check:** `curl http://0.0.0.0:8000/api/v1/health`
+- **API docs:** http://0.0.0.0:8000/docs
+- **View logs:** `tail -f logs/tess.log` (if using PM2) or check console output
+- **Check ChromaDB:** Verify `data/chromadb/` directory exists and contains data
