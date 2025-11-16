@@ -39,11 +39,20 @@ async def search_knowledge_base(
     Returns:
         str: Formatted search results with source documents
     """
-    logger.info("Searching knowledge base", query=query[:100])
+    logger.info("🔎 DEBUG: search_knowledge_base TOOL CALLED!")
+    logger.info(f"🔎 DEBUG: Query: '{query}'")
+    logger.info(f"🔎 DEBUG: Filters: {filters}")
 
     try:
         # Get ChromaDB client
         chroma_client = get_chroma_client()
+
+        # DEBUG: Check collection status
+        try:
+            doc_count = chroma_client.count_documents()
+            logger.info(f"📊 DEBUG: ChromaDB collection has {doc_count} documents")
+        except Exception as e:
+            logger.warning(f"⚠️  DEBUG: Could not get document count: {e}")
 
         # Perform search
         results = chroma_client.search(
@@ -51,12 +60,20 @@ async def search_knowledge_base(
             filters=filters
         )
 
+        logger.info(f"📊 DEBUG: Search returned {len(results) if results else 0} results")
+
         if not results:
-            logger.info("No results found in knowledge base")
+            logger.info("❌ DEBUG: No results found in knowledge base")
             return (
                 "I couldn't find specific information about that in my knowledge base. "
                 "Could you rephrase your question or provide more details?"
             )
+
+        # DEBUG: Log result details
+        for i, result in enumerate(results[:3], 1):  # Log first 3 results
+            doc_preview = result['document'][:100]
+            similarity = result['similarity']
+            logger.info(f"  Result {i}: similarity={similarity:.3f}, content='{doc_preview}...'")
 
         # Format results
         formatted_response = "Based on my knowledge base, here's what I found:\n\n"
@@ -76,16 +93,12 @@ async def search_knowledge_base(
 
             formatted_response += "\n"
 
-        logger.info(
-            f"Knowledge base search completed",
-            results_count=len(results),
-            query=query[:50]
-        )
+        logger.info(f"✅ DEBUG: Knowledge base search completed with {len(results)} results")
 
         return formatted_response.strip()
 
     except Exception as e:
-        logger.error(f"Knowledge base search failed", error=str(e), exc_info=True)
+        logger.error(f"❌ DEBUG: Knowledge base search FAILED", error=str(e), exc_info=True)
         return (
             "I encountered an error while searching my knowledge base. "
             "Please try again or let me know if you need assistance with something else."
