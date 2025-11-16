@@ -13,8 +13,8 @@ class ChatRequest(BaseModel):
     session_id: str = Field(
         ...,
         description="Unique session identifier",
-        min_length=8,
-        max_length=64
+        min_length=1,
+        max_length=128
     )
     message: str = Field(
         ...,

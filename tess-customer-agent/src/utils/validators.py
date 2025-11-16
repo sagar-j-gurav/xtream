@@ -122,11 +122,19 @@ def is_valid_session_id(session_id: str) -> bool:
     Returns:
         bool: True if valid, False otherwise
     """
+    # Check if empty
+    if not session_id or not session_id.strip():
+        return False
+
+    # Check length
+    if len(session_id) > 128:
+        return False
+
     # Check if it's a valid UUID
     try:
         import uuid
         uuid.UUID(session_id)
         return True
     except (ValueError, AttributeError):
-        # Also accept alphanumeric strings of reasonable length
-        return bool(re.match(r'^[a-zA-Z0-9_-]{8,64}$', session_id))
+        # Also accept alphanumeric strings with underscores, hyphens, and dots
+        return bool(re.match(r'^[a-zA-Z0-9_.-]+$', session_id))
