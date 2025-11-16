@@ -156,11 +156,19 @@ class ChromaDBClient:
 
         # Format results
         formatted_results = []
+        all_results_count = 0
         if results['documents'] and len(results['documents']) > 0:
+            all_results_count = len(results['documents'][0])
+            logger.info(f"🔍 DEBUG: ChromaDB returned {all_results_count} raw results")
+
             for i, doc in enumerate(results['documents'][0]):
                 # Check similarity threshold
                 distance = results['distances'][0][i] if results['distances'] else 0
                 similarity = 1 - distance  # Convert distance to similarity
+
+                # DEBUG: Log all results with their scores
+                doc_preview = doc[:80] if doc else "N/A"
+                logger.info(f"  Result {i+1}: distance={distance:.4f}, similarity={similarity:.4f}, doc='{doc_preview}...'")
 
                 if similarity >= self.settings.chroma_similarity_threshold:
                     formatted_results.append({
@@ -169,9 +177,11 @@ class ChromaDBClient:
                         'similarity': similarity,
                         'id': results['ids'][0][i]
                     })
+                else:
+                    logger.info(f"    ❌ Filtered out (similarity {similarity:.4f} < threshold {self.settings.chroma_similarity_threshold})")
 
         logger.info(
-            f"Search returned {len(formatted_results)} results above threshold",
+            f"📊 DEBUG: Search returned {len(formatted_results)}/{all_results_count} results above threshold {self.settings.chroma_similarity_threshold}",
             query=query[:50]
         )
 
