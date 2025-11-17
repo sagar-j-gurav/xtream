@@ -2,8 +2,9 @@
 LangGraph Agent State Schema
 Defines the state structure for TESS agent
 """
-from typing import TypedDict, List, Optional, Dict, Any
+from typing import TypedDict, List, Optional, Dict, Any, Annotated
 from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
 
 class AgentState(TypedDict):
@@ -14,8 +15,8 @@ class AgentState(TypedDict):
     the LangGraph agent nodes
     """
 
-    # Conversation messages
-    messages: List[BaseMessage]
+    # Conversation messages (annotated with add_messages reducer to append rather than replace)
+    messages: Annotated[List[BaseMessage], add_messages]
 
     # Session information
     session_id: str

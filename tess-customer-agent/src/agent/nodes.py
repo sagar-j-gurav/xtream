@@ -46,23 +46,22 @@ async def call_model(state: AgentState) -> AgentState:
     # Get messages from state
     messages = state["messages"]
 
-    # Filter out ToolMessage instances (they cause OpenAI API errors)
-    # Only keep HumanMessage, AIMessage, and SystemMessage
-    filtered_messages = [
-        msg for msg in messages
-        if not isinstance(msg, ToolMessage)
-    ]
-
-    # Ensure system message is first
-    if not filtered_messages or not isinstance(filtered_messages[0], SystemMessage):
-        filtered_messages = [SystemMessage(content=SYSTEM_PROMPT)] + filtered_messages
+    # Ensure system message is first (only if not already present)
+    # With add_messages reducer, messages accumulate, so only add system message once
+    if not messages or not isinstance(messages[0], SystemMessage):
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
 
     # DEBUG: Log the messages being sent to LLM
-    logger.info(f"🔍 DEBUG: Sending {len(filtered_messages)} messages to LLM")
-    for i, msg in enumerate(filtered_messages):
+    logger.info(f"🔍 DEBUG: Sending {len(messages)} messages to LLM")
+    for i, msg in enumerate(messages):
         msg_type = type(msg).__name__
         content_preview = str(msg.content)[:100] if hasattr(msg, 'content') else "N/A"
-        logger.info(f"  Message {i}: {msg_type} - {content_preview}...")
+
+        # For ToolMessages, also show the tool result preview
+        if isinstance(msg, ToolMessage):
+            logger.info(f"  Message {i}: {msg_type} (tool result) - {content_preview}...")
+        else:
+            logger.info(f"  Message {i}: {msg_type} - {content_preview}...")
 
     # Create LLM
     llm = create_llm()
@@ -81,10 +80,10 @@ async def call_model(state: AgentState) -> AgentState:
     # Bind tools to LLM if available
     if tools:
         llm_with_tools = llm.bind_tools(tools)
-        response = await llm_with_tools.ainvoke(filtered_messages)
+        response = await llm_with_tools.ainvoke(messages)
     else:
         logger.warning("No tools available - agent will respond without tools")
-        response = await llm.ainvoke(filtered_messages)
+        response = await llm.ainvoke(messages)
 
     # DEBUG: Log the LLM response details
     has_tool_calls = bool(response.tool_calls) if hasattr(response, 'tool_calls') else False
@@ -98,15 +97,11 @@ async def call_model(state: AgentState) -> AgentState:
         response_preview = str(response.content)[:200] if hasattr(response, 'content') else "N/A"
         logger.info(f"💬 DEBUG: LLM decided NOT to use tools. Response: {response_preview}...")
 
-    # Update state
-    state["messages"] = messages + [response]
+    logger.info("Model response generated", has_tool_calls=has_tool_calls)
 
-    logger.info(
-        "Model response generated",
-        has_tool_calls=has_tool_calls
-    )
-
-    return state
+    # Update state - with add_messages reducer, we just return the new message
+    # The reducer will automatically append it to existing messages
+    return {"messages": [response]}
 
 
 def should_continue(state: AgentState) -> str:
