@@ -46,10 +46,18 @@ async def call_model(state: AgentState) -> AgentState:
     # Get messages from state
     messages = state["messages"]
 
+    # Get user_identifier from state to include in system message
+    user_identifier = state.get("user_identifier", "")
+
     # Ensure system message is first (only if not already present)
     # With add_messages reducer, messages accumulate, so only add system message once
     if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
+        # Build system message with user_identifier context
+        system_content = SYSTEM_PROMPT
+        if user_identifier:
+            system_content += f"\n\nCURRENT USER CONTEXT:\n- user_identifier: {user_identifier}\n- Check if this is a valid email/phone or random ID before searching leads!"
+
+        messages = [SystemMessage(content=system_content)] + messages
 
     # DEBUG: Log the messages being sent to LLM
     logger.info(f"🔍 DEBUG: Sending {len(messages)} messages to LLM")
